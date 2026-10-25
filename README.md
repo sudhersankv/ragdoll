@@ -1,109 +1,163 @@
-# 🎬 FALLGUY (`ragdoll`)
-### The Autonomous Recursive Stunt Harness — Powered by Gemini 4 Argon + DeepMind MuJoCo (WebGL / WASM)
+# FALLGUY: rehearse the stunt before anyone gets hurt
 
-> **Built for the Gemini 4 Argon SF Hackathon (Google DeepMind × Cerebral Valley)**
+**Gemini 4 Argon × Google DeepMind hackathon, San Francisco**
 
----
+Stunt choreography is one of the hardest jobs in film and live events. Teams spend weeks planning a single difficult stunt, but they rarely rehearse in the real location, and most of the shoot-day props aren't there during rehearsals. Performers end up improvising on the spot, and that's where injuries happen. AI video tools don't help: their clips look dramatic, but the physics is invented.
 
-## 🚀 Overview & Core Thesis
+FALLGUY turns a phone video or photo of a real location into a physics-ready 3D world. A director describes a stunt in plain English. A Unitree H1 humanoid performs it in MuJoCo while we trace the biomechanics: head G, HIC15, joint torques, impact forces and spinal-load proxies. **Gemini 4 Argon** works as the Assistant Stunt Director throughout: it builds and checks the world, writes the choreography, watches every take and proposes a safer, better one.
 
-Generative video models hallucinate physics, while Hollywood stunt pre-visualization ("techvis") takes weeks of manual 3D engineering in Maya or Unreal.
-
-**FALLGUY** is a **100% browser-based WebGL & MuJoCo WebAssembly (`@mujoco/mujoco` + Three.js) stunt choreography and biomechanical safety platform**. Given a phone video/photo of any real-world location (such as the SF hackathon venue), **Gemini 4 Argon** reconstructs the 3D collision stage in WebGL and runs a **Closed-Loop 3-Gate Stunt Verification Harness**:
-1. **Spawns waves of parallel "Ghost Stuntmen" in MuJoCo WASM** directly over the location footage.
-2. **Evaluates real biomechanical survivability** (Cranial/Cervical Spine impact G-forces, joint torques, obstacle clearances) + **multimodal camera framing**.
-3. **Recursively self-improves** across waves while allowing the human **Lead Stunt Director** to steer the 3D scene and camera live in bullet-time.
-
-*(Bonus Sim-to-Real capability: Because trajectories are solved in MuJoCo with real joint constraints, verified stunt trajectories can also be exported as 500Hz `.npz`/`.json` control policies for physical humanoid robots like Unitree G1).*
+Everything is viewed in the browser through a WebGL dashboard.
 
 ---
 
-## 🎯 Why This Hits All 4 Hackathon Tracks
-
-| Hackathon Track | How FALLGUY Pushes Gemini 4 Argon to the Limit |
-| :--- | :--- |
-| **1. Advanced Reasoning (Recursive Harness)** | Argon operates inside a strict **3-Gate Verification Harness**: after each wave of MuJoCo simulations, it diagnoses contact forces ($G$s), joint torques, and collision timestamps to compute exact parameter mutations for Wave $N+1$. |
-| **2. Robotics & Physics (`MuJoCo WASM`)** | Runs Google DeepMind's official **`@mujoco/mujoco`** engine in the browser at 60 FPS to simulate articulated human biomechanics, momentum, friction, and spinal/cranial impact G-forces. |
-| **3. World Models (Video $\rightarrow$ 3D Scene)** | Argon extracts 3D obstacle geometry (`MJCF` XML primitives) from a handheld location video/photo and visually self-aligns the 3D WebGL wireframe overlay against the real footage. |
-| **4. Visual Coding (Tactical WebGL UI)** | Interactive Three.js / WebGL viewport with **Matrix Bullet-Time 360° Orbit**, **4 Parallel Colored Ghost Trajectories**, **Anatomical G-Force Injury Heatmap**, and live human-in-the-loop steering. |
-
----
-
-## 🔄 The 3-Gate Recursive Stunt Harness Architecture
+## The pipeline
 
 ```mermaid
-flowchart TD
-    Input["📱 Location Video/Photo Uploaded in Browser"] --> Stage1["🌐 Stage 1: WebGL World Model Reconstruction\n- Argon extracts 3D obstacle boxes (couch, table, stairs, ledge) & camera frustum\n- Generates MJCF XML loaded into @mujoco/mujoco WASM + Three.js WebGL\n- Argon visually self-aligns 3D wireframe overlay over the video frame"]
-    
-    Stage1 --> Brief["🎬 Lead Stunt Director Brief\ne.g. 'Speed-vault the couch, clear the gap, and dive-roll onto the crash pad'"]
-    
-    Brief --> WaveGen["🤖 Assistant Stunt Director (Gemini 4 Argon)\nGenerates Wave of 4 Candidate Stunt Trajectories:\n(approach_vel, jump_impulse, pitch_torque, tuck_timing, arm_plant, mat_pos)"]
-    
-    WaveGen --> Sim["⚡ Browser MuJoCo WASM + WebGL Engine (60 FPS)\n- Runs 4 parallel Ghost Stuntmen inside the 3D WebGL viewport\n- Records per-joint G-forces, obstacle contacts, and trajectory splines"]
-    
-    Sim --> Gate1{"🛡️ GATE 1: Biomechanical Safety & Physics Math\n- Cranial / Cervical Spine Impact < 8.0 G?\n- Unintended Obstacle Collision == 0?\n- Landed Inside Crash Pad Bounds?"}
-    
-    Gate1 -- "❌ All/Most Ghosts Fail" --> Feedback1["Harness injects exact biomechanical failure log into Argon:\ne.g. 'Wave 1 Best Score 29%: Ghost B clipped left shin on couch; Ghost C had 21.4G C3 neck impact'"]
-    Feedback1 --> WaveGen
-    
-    Gate1 -- "✅ Surviving Ghost(s)" --> Gate2{"👁️ GATE 2: Argon Multimodal Visual & Style Critic\n- Inspects WebGL composite canvas snapshots\n- Does stunt match Director's choreo & stay framed in camera?"}
-    
-    Gate2 -- "❌ REJECT Style/Framing" --> Feedback2["Harness injects visual critique into Argon:\ne.g. 'Wave 2 Score 68%: Safe landing (5.1G), but vault was too floaty and exited top of camera frame'"]
-    Feedback2 --> WaveGen
-    
-    Gate2 -- "✅ PASS" --> Gate3{"🎬 GATE 3: Human Stunt Director Interactive Gate\nJudge / Director inspects 3D WebGL replay, orbits camera 360°, or steers live"}
-    
-    Gate3 -- "🗣️ Director Live Steer / Drag 3D Obstacle\n('Move crash mat 1m back & make clearance tighter!')" --> WaveGen
-    Gate3 -- "✅ Director Locks Stunt" --> Export["📦 Final Stunt Techvis Blueprint\n- Interactive 3D WebGL Multi-Scene Storyboard (5-10s stitched sequence)\n- Anatomical Safety Certificate + Sim-to-Real Trajectory JSON"]
+flowchart LR
+    A[Video or image<br/>of the location] --> B[Measure<br/>depth, floor, camera pan]
+    B --> C[Argon maps the place<br/>objects, sizes, materials, camera]
+    C --> D[Game-style 3D replica<br/>+ MuJoCo collision geometry]
+    D --> E{Argon checks renders<br/>against the footage}
+    E -- fix, up to 2 rounds --> D
+    E --> F[Director approves<br/>or edits by prompt]
+    F --> G[Director describes the stunt<br/>+ video length]
+    G --> H[Argon writes the choreography<br/>asks clarifying questions]
+    H --> I[Unitree H1 simulation<br/>+ biomechanics]
+    I --> J[Argon watches the take<br/>+ reads the numbers]
+    J -- improved take --> I
+    J --> K[Director locks the take]
 ```
 
+### 1. World: a game-style replica of the real place
+- **Measure.** Frames are extracted from the clip. Depth Anything V2 (metric, indoor) runs on Apple Silicon (MPS) on the still part of the shot. The floor is fitted with RANSAC, and any camera pan is tracked as a pure rotation. The result is a metric grid and a plan view. Depth is only a measuring tool: no video pixels end up in the world.
+- **Map.** Argon (`gemini-4-argon`, thinking `high`) watches the clip together with the grid overlays and returns every object: walls, curtains, railings, doors, screens, furniture, plants, people. Each comes with a position, size, colour, material and hazard flag, plus the reference camera.
+- **Model.** A procedural asset library (`fallguy/world/assets.py`, 36 categories plus a primitive fallback) turns each object into a clean low-poly asset with stylised materials. Examples: pleated curtains, glass railings with handrails, arches, LED screens with a lit face, box truss, tripod speakers, faceted plants, mannequins, crash mats. The assets are exported as `mesh/env.glb` for the browser and per-asset OBJs for MuJoCo. Collision uses simple primitives per object.
+- **Check.** Argon compares renders of the replica with the real frames. It returns a fidelity score and per-object corrections in metres, which are applied automatically for up to 2 rounds (target score 80).
+- **Edit.** The director can prompt changes such as "add a crash mat where he turns", and Argon edits the world.
+
+### 2. Choreography: written by Argon, no hardcoded stunt types
+Argon turns the brief into a sequence of generic motion phases: `hold`, `move` (along a path, with a speed profile, corner radius and lean), `jump` (launch velocity and rotations), `fall`, `air` (pose schedule) and `land` (compliance). It also writes the **tunables** the loop is allowed to change and a **target** (a crash mat or a finish zone). When the brief is ambiguous, Argon asks first, for example "is left the camera's left?".
+
+### 3. Simulation: Unitree H1 + traced biomechanics
+- The performer is always the **Unitree H1** from MuJoCo Menagerie.
+- **Ground phases** are scripted: the pelvis follows the plan and the feet are planted with leg IK. **MuJoCo inverse dynamics** (`mj_inverse`) recovers the joint torques and ground reaction forces the motion needs, the way gait labs do.
+- **From take-off on**, it's free physics with PD-servoed limbs, so impacts and contacts are real.
+- **Biomechanics:**
+  - head acceleration (15 ms window) and HIC15
+  - torque at every joint (knee, hip and ankle peaks in N·m)
+  - ground reaction force (× body weight)
+  - neck and lumbar compression proxies from internal body forces, flagged as approximations because the H1 has no neck or spine joints
+  - lateral (cornering) G
+  - clearance from hazards
+  - a per-link stress index: load ÷ literature limit, green / amber / red
+- **Gates:**
+  - **Gate 1 (physics and biomechanics):** literature injury criteria, with the blueprint's 8 G shown as the conservative stunt target. No hazard collisions, enough clearance, landing on target.
+  - **Gate 2 (Argon's visual critique):** Argon judges the rendered take.
+  - **Gate 3:** the director's lock.
+
+### 4. Self-improvement: one take at a time
+Argon watches the rendered take (long-video understanding at 8 fps) and reads the MuJoCo numbers as ground truth. It writes a timestamped critique and proposes concrete changes. FALLGUY applies them, simulates the next take, critiques it again, and records every take in a convergence table.
+
+**Example (hallway video, "runs towards the camera and takes a left turn", 6 s):**
+
+| Take | Change | Result |
+|---|---|---|
+| v1 | Argon's first choreography: 3.8 m/s | Gate 1 fail: right shoulder 1.9 cm from the curtain wall; knee/ankle torque red. Score 82 |
+| v2 | Argon: slower (3.2 m/s), wider turn, smoother accel/brake | Gate 1 pass: 7.9 cm clearance, head 3.2 G, HIC15 1.7, 0.51 g cornering. **Score 97** |
+
 ---
 
-## 📊 Quantitative Self-Improvement Metrics
+## Quick start
 
-After every wave, the Harness computes an objective **Stunt Viability Score ($0\text{–}100\%$)** directly from MuJoCo telemetry and plots it live on the UI:
-
-$$\text{Stunt Score} = 0.35(\text{Biomechanical Safety}) + 0.25(\text{Obstacle Clearance}) + 0.20(\text{Landing Target}) + 0.20(\text{Camera Framing})$$
-
-| Metric | Measured Directly in `@mujoco/mujoco` WASM | Wave 1 Best (❌ Gate 1) | Wave 2 Best (❌ Gate 2) | Wave 3 Winner (✅ Locked) |
-| :--- | :--- | :--- | :--- | :--- |
-| **1. Cranial / Neck Impact ($G$)** | Peak head/torso acceleration (`< 8.0G` human injury limit) | `21.4 G` *(Critical Neck Risk 🔴)* | `6.4 G` *(Moderate 🟡)* | `3.5 G` *(Safe Roll Absorption 🟢)* |
-| **2. Obstacle Clearance ($\text{cm}$)** | Min distance between shins/torso and obstacle box | `-7 cm` *(Shin Collision 🔴)* | `+48 cm` *(Over-jumped 🟡)* | `+11 cm` *(Tight Vault 🟢)* |
-| **3. Landing Accuracy ($\text{m}$)** | Distance from pelvis rest position to crash pad center | `1.28 m` *(Missed Mat 🔴)* | `0.29 m` *(Mat Edge 🟡)* | `0.06 m` *(Bullseye 🟢)* |
-| **4. Camera Framing & Style ($\%$)** | Frustum visibility % + Argon Visual Critic score | `40%` *(Fell out of frame)* | `70%` *(Apex cropped)* | `96%` *(Hero Framing 🟢)* |
-| **OVERALL HARNESS SCORE** | **Plotted on Live Wave Convergence Chart** | **29 / 100** | **68 / 100** | **96 / 100** |
-
----
-
-## 🛠️ Tech Stack & Quickstart
-
-Everything runs inside a single fast web application so judges can test it live in their browser:
-
-* **Physics Engine:** [`@mujoco/mujoco`](https://www.npmjs.com/package/@mujoco/mujoco) (Google DeepMind's official MuJoCo WebAssembly bindings)
-* **3D WebGL Renderer:** `three`, `@react-three/fiber`, `@react-three/drei`
-* **AI Brain & Multimodal Critic:** `@google/genai` (`gemini-4-argon`)
-* **Frontend UI:** React + Vite + Tailwind CSS + Lucide Icons
+Requirements: macOS on Apple Silicon (tested on M4) or Linux, Python 3.12, `uv`, and a Gemini API key with access to `gemini-4-argon`.
 
 ```bash
-# Install core dependencies
-npm install @mujoco/mujoco three @types/three @react-three/fiber @react-three/drei @google/genai tailwindcss lucide-react
+# 1. Python environment
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r fallguy/requirements.txt
+
+# 2. Unitree H1 assets (MuJoCo Menagerie, sparse checkout)
+git submodule update --init --filter=blob:none models/mujoco_menagerie
+git -C models/mujoco_menagerie sparse-checkout set unitree_h1
+
+# 3. Argon key: one line, read only by the scripts, never printed
+echo "YOUR_KEY" > ~/.argon_token && chmod 600 ~/.argon_token
+
+# 4. Run the dashboard
+.venv/bin/python -m fallguy.app --port 8800
+# open http://127.0.0.1:8800
+```
+
+### The dashboard (`fallguy.app`)
+- **World dropdown:** every built world with its Argon fidelity score. **Upload video** starts a new build with live progress.
+- **World panel:** fidelity score and per-object issues, render-vs-footage thumbnails, edit-by-prompt and re-verify.
+- **3D viewport (Three.js/WebGL):**
+  - camera-match or free-orbit views
+  - toggles for mesh, collision boxes, stress colours, follow, and the real video frame as a backdrop
+  - v1 | v2 side by side, with a scrubber and speed control
+- **Stunt panels (from the blueprint):**
+  - Gate 1/2/3 badges
+  - a convergence chart and per-take loop table: score, head G, HIC15, knee torque, GRF, clearance, landing
+  - an anatomical telemetry card
+  - Argon's critique
+  - brief and length inputs, Argon's clarifying questions, Run and Improve
+
+Deep link: `http://127.0.0.1:8800/?world=<world_id>&stunt=<stunt_id>&take=v2&split=1`
+
+### Command line
+```bash
+# Stage 1: world
+.venv/bin/python -m fallguy.world build  --media path/to/location.mov [--out worlds]
+.venv/bin/python -m fallguy.world verify --world worlds/<id> --apply
+.venv/bin/python -m fallguy.world edit   --world worlds/<id> --prompt "add a crash mat at the end of the hallway"
+.venv/bin/python -m fallguy.world render --world worlds/<id>          # rebuild assets + renders, no Argon call
+
+# Stages 2–4: stunt
+.venv/bin/python -m fallguy.stunt plan     --world worlds/<id> --brief "runs towards the camera and takes a left turn" --duration 6
+.venv/bin/python -m fallguy.stunt simulate --stunt stunts/<id> --take v1
+.venv/bin/python -m fallguy.stunt critique --stunt stunts/<id> --take v1
+.venv/bin/python -m fallguy.stunt improve  --stunt stunts/<id> --from v1 --to v2
+
+# Standalone viewer
+.venv/bin/python -m fallguy.viewer --world worlds/<id> [--stunt stunts/<id>]
+```
+
+For a still image, convert it to a short clip first, e.g. 3 s with the bundled ffmpeg, as done for the `screen_area` scene. Argon calls at thinking `high` take 1–5 minutes each; set `FALLGUY_ARGON_TIMEOUT=900` for long verify calls.
+
+### Claude Code skills
+- `/fallguy-world`: video → world, Argon's check, edits by prompt (`.claude/skills/fallguy-world/SKILL.md`)
+- `/fallguy-stunt`: choreography → H1 simulation → critique → improved take (`.claude/skills/fallguy-stunt/SKILL.md`)
+
+---
+
+## Repository layout
+
+```text
+fallguy/                    # the pipeline (python -m fallguy.<module>)
+├── argon.py                # Gemini 4 Argon REST client (key from ~/.argon_token, thinking high, strict JSON)
+├── world/                  # stage 1: measure, Argon layout, asset library, MJCF + GLB, verify, edit
+├── stunt/                  # stages 2–4: plan, simulate, critique, improve
+├── engine/                 # MuJoCo scene, Unitree H1 performer, phase interpreter, sim, metrics, render
+├── biomech.py              # inverse/forward dynamics loads, HIC15, stress index, literature limits
+├── gates.py                # Gate 1 / Gate 2 thresholds and the stunt score
+├── app/                    # FastAPI dashboard + jobs (static/ = Three.js UI)
+├── viewer/                 # standalone WebGL viewer
+└── CONTRACT.md             # file formats shared by every module
+.claude/skills/             # fallguy-world, fallguy-stunt
+worlds/, stunts/            # run outputs (git-ignored)
+fallguy_blueprint.md        # the original hackathon blueprint
+backend/, frontend/         # the earlier FastAPI + React MVP (tickets 01–05)
+barrel_roll*.py, argon_*.py # the first Argon-planned barrel-roll prototypes
 ```
 
 ---
 
-## 👥 2-Person, 3-Hour Build Split
+## Known limitations
+- **Scale** comes from a monocular depth model plus a 1.5 m phone-height prior, so absolute sizes can be off by tens of percent (e.g. the hallway came out about 1.9 m wide versus about 3 m).
+- **World fidelity** tops out around 68/100 after 2 Argon rounds on our test clips. Anything off-camera isn't modelled, and complex furniture is simplified.
+- **The H1 isn't a human.** It has no neck or spine joints, so cervical and lumbar loads are proxies. Inverse-dynamics torques during scripted running are indicative: knee and ankle often read above the reference limits.
+- **Argon latency** dominates: layout about 5 min, each verify round 2–6 min, each take's critique about 45 s.
+- The dashboard's camera-match view uses the single reference pose; it doesn't follow a camera pan yet.
 
-### **Person 1: MuJoCo WASM + Three.js WebGL Stunt Engine (`src/physics/`)**
-1. **MuJoCo WASM Loader:** Initialize `@mujoco/mujoco` in the browser with the articulated human stunt rig (`humanoid.xml`) + dynamic 3D obstacle boxes (`couch`, `table`, `ledge`, `crash_mat`).
-2. **Parameterized Stunt Controller:** Execute a 3-second stunt beat from Argon's JSON control vector (`approach_vel`, `jump_impulse`, `pitch_torque`, `hip_tuck_t`, `knee_drive`, `roll_recovery`) and record 3D bone transforms + joint G-forces.
-3. **Parallel Ghost Renderer & Bullet-Time Camera:** Render the **4 Parallel Ghost Stuntmen** + glowing 3D trajectory arcs + skeletal G-force colors (Red/Amber/Green bones) in Three.js over the background video plate, with a toggle between **Camera Match View** and **360° Free Orbit View**.
-
-### **Person 2: Gemini 4 Argon Recursive Harness + Director UI (`src/agent/` & `src/ui/`)**
-1. **Stage 1 (Location Video $\rightarrow$ 3D World):** Prompt `gemini-4-argon` with the uploaded venue video frame to generate the 3D obstacle layout JSON + camera FOV/pose, with a 1-step visual self-alignment check.
-2. **Stage 2 (The 3-Gate Recursive Harness):** Run the autonomous wave loop (`Wave 1` $\rightarrow$ `Wave 2` $\rightarrow$ `Wave 3`), feeding MuJoCo WASM's G-force/collision telemetry + `canvas.toDataURL()` WebGL screenshots back to `gemini-4-argon` until Gates 1 & 2 pass.
-3. **Stage 3 (Tactical Director HUD & Multi-Scene Timeline):**
-   * Live **Biomechanical Skeleton Heatmap** (Head, Neck, Spine, Knees G-force meter).
-   * **Wave Convergence Chart** (`29%` $\rightarrow$ `68%` $\rightarrow$ `96%`).
-   * **3-Shot Sequence Timeline** to stitch 2–3 stunt beats into a continuous 8–10 second action sequence.
-   * **Interactive Director Steer Controls:** Drag obstacles in 3D, orbit camera 360°, or click quick Director Steer buttons (*"Higher Vault"*, *"Tighter Clearance"*, *"Flip at Apex"*).
-
+## Credits
+Built at the Gemini 4 Argon hackathon with Gemini 4 Argon, MuJoCo 3.17 and MuJoCo Menagerie (Unitree H1, BSD-3), Depth Anything V2, Three.js and FastAPI.
