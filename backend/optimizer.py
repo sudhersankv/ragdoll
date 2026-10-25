@@ -100,11 +100,11 @@ def _correct(params: Dict[str, Any], entry: Dict[str, Any], scene: Dict[str, Any
             p["takeoff_vx"] += dv
             notes.append(f"touchdown {dx:+.2f}m from aim -> vx {dv:+.2f} m/s")
 
-    if m["peak_head_g"] >= 15 or m["hic15"] >= 250 or "head struck" in diag:
-        p["landing_compliance"] += 0.15
-        p["pitch_rate"] *= 0.6
+    if m["peak_head_g"] >= 8.0 or m["hic15"] >= 250 or "head struck" in diag:
+        p["landing_compliance"] = max(0.72, p.get("landing_compliance", 0.5) + 0.22)
+        p["pitch_rate"] *= 0.65
         p["extend_time"] -= 0.05
-        notes.append(f"head load {m['peak_head_g']}g / HIC {m['hic15']:.0f} -> softer landing, less rotation, earlier extension")
+        notes.append(f"head load {m['peak_head_g']}g / HIC {m['hic15']:.0f} -> softer landing compliance, less rotation, earlier extension")
     return clamp_params(p), notes
 
 

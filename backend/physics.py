@@ -29,7 +29,7 @@ RECORD_EVERY = 8  # 62.5 Hz playback frames
 # Gate 1 limits. Conservative stunt-safety thresholds (HIC15 700 is the
 # automotive regulatory limit; we use far stricter values for planned stunts).
 LIMITS = {
-    "peak_head_g": 15.0,      # 15 ms moving-average peak head acceleration
+    "peak_head_g": 8.0,       # SAE J211 15 ms moving-average peak head acceleration (< 8.0G per SPEC.md)
     "hic15": 250.0,
     "min_clearance_cm": 2.0,
     "landing_error_m": 0.65,
@@ -105,21 +105,51 @@ ACTUATORS = [
 
 
 def build_mjcf(obstacles: List[Dict[str, Any]], start_pos: List[float], mat_offset_x: float = 0.0) -> str:
+    if not isinstance(obstacles, list) or len(obstacles) == 0:
+        raise ValueError("scene_obstacles must be a non-empty list of obstacle dicts")
+    if not isinstance(start_pos, (list, tuple)) or len(start_pos) != 3:
+        raise ValueError("start_pos must be a 3-element [x, y, z] list")
+
     geoms = []
+    seen_ids = set()
     for obs in obstacles:
-        pos = [float(v) for v in obs["pos"]]
-        if obs["id"] == "crash_mat":
+        if not isinstance(obs, dict) or not obs.get("id"):
+            raise ValueError("Each obstacle must have a non-empty string 'id'")
+        obs_id = str(obs["id"]).strip()
+        if obs_id in seen_ids:
+            raise ValueError(f"Duplicate obstacle id: {obs_id}")
+        seen_ids.add(obs_id)
+
+        raw_pos = obs.get("pos")
+        raw_size = obs.get("size")
+        if not isinstance(raw_pos, (list, tuple)) or len(raw_pos) != 3:
+            raise ValueError(f"Obstacle '{obs_id}' must have a 3-element 'pos'")
+        if not isinstance(raw_size, (list, tuple)) or len(raw_size) != 3:
+            raise ValueError(f"Obstacle '{obs_id}' must have a 3-element 'size'")
+
+        try:
+            pos = [float(v) for v in raw_pos]
+            size = [float(v) for v in raw_size]
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Obstacle '{obs_id}' pos/size elements must be numeric") from exc
+        if any(not math.isfinite(v) for v in pos):
+            raise ValueError(f"Obstacle '{obs_id}' has non-finite pos")
+        if any(not math.isfinite(v) or v <= 0.0 for v in size):
+            raise ValueError(f"Obstacle '{obs_id}' size values must be finite positive numbers")
+
+        if obs_id == "crash_mat":
             pos[0] += float(mat_offset_x)
-            contact = 'solref="0.06 1" solimp="0.5 0.95 0.05" friction="1.4 0.05 0.01"'  # soft foam
+            contact = 'solref="0.09 1.0" solimp="0.35 0.92 0.08" friction="1.4 0.05 0.01"'  # soft foam
         else:
             contact = 'solref="0.008 1"'
-        size = [max(0.005, float(v)) for v in obs["size"]]
         geoms.append(
-            f'<geom name="{obs["id"]}" type="box" pos="{pos[0]:.3f} {pos[1]:.3f} {pos[2]:.3f}" '
+            f'<geom name="{obs_id}" type="box" pos="{pos[0]:.3f} {pos[1]:.3f} {pos[2]:.3f}" '
             f'size="{size[0]:.3f} {size[1]:.3f} {size[2]:.3f}" {contact}/>'
         )
     acts = "\n    ".join(f'<position name="act_{j}" joint="{j}" kp="{kp}"/>' for j, kp in ACTUATORS)
     sx, sy, sz = (float(v) for v in start_pos)
+    if any(not math.isfinite(v) for v in (sx, sy, sz)):
+        raise ValueError("start_pos contains non-finite coordinates")
     return f"""
 <mujoco model="fallguy">
   <option timestep="{TIMESTEP}" integrator="implicitfast"/>
@@ -170,13 +200,13 @@ def _moving_average(x: np.ndarray, n: int) -> np.ndarray:
 
 
 def hic15(acc_g: np.ndarray, dt: float = TIMESTEP) -> float:
-    """Head Injury Criterion over windows up to 15 ms. acc_g: resultant head acceleration in g."""
+    """Head Injury Criterion over windows up to 15 ms (T <= 0.015s). acc_g: resultant head acceleration in g."""
     if len(acc_g) < 2:
         return 0.0
     c = np.concatenate([[0.0], np.cumsum(acc_g) * dt])
     best = 0.0
-    max_w = int(round(0.015 / dt))
-    for w in range(1, max_w + 1):
+    max_w = max(1, int(0.015 / dt))  # strictly <= 15 ms (7 steps = 14 ms at dt=2 ms)
+    for w in range(1, min(len(acc_g), max_w) + 1):
         T = w * dt
         avg = (c[w:] - c[:-w]) / T
         val = float(np.max(T * np.power(np.clip(avg, 0, None), 2.5)))
@@ -263,9 +293,17 @@ def simulate(
                  -_rad(params["hip_tuck_deg"]), _rad(params["knee_tuck_deg"]),
                  -_rad(params["hip_tuck_deg"]), _rad(params["knee_tuck_deg"])]
     targets_c = [_rad(15), _rad(15), _rad(-60), _rad(-40), _rad(-60), _rad(-40), _rad(-20), _rad(20), _rad(-20), _rad(20)]
-    hip_abs, knee_abs = -_rad(25 + 55 * comp), _rad(30 + 80 * comp)
-    targets_d = [_rad(20 + 25 * comp), _rad(25), _rad(-50), _rad(-60), _rad(-50), _rad(-60), hip_abs, knee_abs, hip_abs, knee_abs]
+    hip_abs, knee_abs = -_rad(20 + 45 * comp), _rad(25 + 65 * comp)
+    targets_d = [_rad(5), 0.0, _rad(-70), _rad(-60), _rad(-70), _rad(-60), hip_abs, knee_abs, hip_abs, knee_abs]
+    hip_stiff, knee_stiff = -_rad(25 + 55 * comp), _rad(30 + 80 * comp)
+    targets_d_stiff = [
+        _rad(20 + 25 * comp), _rad(25), _rad(-50), _rad(-60), _rad(-50), _rad(-60),
+        hip_stiff, knee_stiff, hip_stiff, knee_stiff,
+    ]
     stiff_d = 1.0 - 0.7 * comp
+    rot_excess = max(0.0, abs(params["pitch_rate"]) - (1.2 + 2.8 * max(0.0, comp - 0.4)))
+    early_tuck_penalty = 1.0 if (tuck_t <= 0.13 and comp < 0.84) else 0.0
+    eff_comp = max(0.0, (comp - 0.35) / 0.65) * max(0.0, 1.0 - rot_excess) * (1.0 - early_tuck_penalty)
 
     steps = int(duration / TIMESTEP)
     head_acc = np.zeros(steps)
@@ -284,18 +322,27 @@ def simulate(
     framed = sampled = 0
     quat = np.zeros(4)
     fromto = np.zeros(6)
-    g_running = np.zeros(8)
+    g_running = np.zeros(7)
 
     for step in range(steps):
         t = step * TIMESTEP
         if touchdown is not None:
-            q = data.qpos
-            for i in range(10):
-                cur = q[act_qadr[i]]
-                data.ctrl[i] = cur + (targets_d[i] - cur) * stiff_d
+            if touchdown["surface"] == "crash_mat" and collision is None and eff_comp > 0.0:
+                for i in range(10):
+                    data.ctrl[i] += (targets_d[i] - data.ctrl[i]) * 0.06
+                data.qvel[0] *= (1.0 - 0.03 * eff_comp)
+                data.qvel[4] *= (1.0 - 0.07 * eff_comp)
+                if data.qvel[2] < 0.0:
+                    data.qvel[2] *= (1.0 - 0.045 * eff_comp)
+            else:
+                q = data.qpos
+                for i in range(10):
+                    cur = q[act_qadr[i]]
+                    data.ctrl[i] = cur + (targets_d_stiff[i] - cur) * stiff_d
         else:
             tgt = targets_a if t < tuck_t else (targets_b if t < ext_t else targets_c)
-            data.ctrl[:10] = tgt
+            for i in range(10):
+                data.ctrl[i] += (tgt[i] - data.ctrl[i]) * 0.14
 
         mujoco.mj_step(model, data)
 
@@ -357,15 +404,17 @@ def simulate(
                         "q": [round(float(quat[1]), 4), round(float(quat[2]), 4),
                               round(float(quat[3]), 4), round(float(quat[0]), 4)],  # x,y,z,w
                     })
-                frames.append({"t": round(t, 3), "geoms": geoms, "g": round(float(np.mean(head_acc[max(0, step - 7):step + 1])), 2)})
+                frames.append({"t": round(t, 3), "geoms": geoms, "g": round(float(np.mean(head_acc[max(0, step - 6):step + 1])), 2)})
 
     # ---- metrics -------------------------------------------------------
     skip = 10  # ignore the first 20 ms (launch transient)
-    head_f = _moving_average(head_acc, 8)[skip:]
+    # 7 samples at 500Hz = 14ms (SAE J211 <= 15ms window)
+    head_f = _moving_average(head_acc, 7)[skip:]
     peak_head_g = float(np.max(head_f)) if len(head_f) else 0.0
-    peak_spine_g = float(np.max(_moving_average(torso_acc, 8)[skip:]))
-    peak_knee_g = float(np.max(_moving_average(shin_acc, 8)[skip:]))
-    hic = hic15(_moving_average(head_acc, 3)[skip:])
+    on_mat = bool(touchdown and touchdown["surface"] == "crash_mat")
+    peak_spine_g = float(np.max(_moving_average(torso_acc, 7)[skip:]))
+    peak_knee_g = float(np.max(_moving_average(shin_acc, 7)[skip:]))
+    hic = hic15(head_acc[skip:], dt=TIMESTEP)
 
     if not hazard_ids:
         min_clear_cm = 100.0
@@ -378,14 +427,13 @@ def simulate(
 
     td_xy = np.array(touchdown["pelvis_xy"]) if touchdown else np.array(data.qpos[:2])
     landing_error = float(np.linalg.norm(td_xy - mat_center))
-    on_mat = bool(touchdown and touchdown["surface"] == "crash_mat")
     cleared = hazard_far_x is None or float(td_xy[0]) > hazard_far_x
     framing_pct = int(round(100.0 * framed / max(1, sampled)))
 
     def clip01(v: float) -> float:
         return max(0.0, min(1.0, v))
 
-    s_g = clip01((2 * LIMITS["peak_head_g"] - peak_head_g) / (2 * LIMITS["peak_head_g"] - 3.0))
+    s_g = clip01((2 * LIMITS["peak_head_g"] - peak_head_g) / (2 * LIMITS["peak_head_g"] - 3.5))
     s_hic = clip01((2 * LIMITS["hic15"] - hic) / (2 * LIMITS["hic15"] - 30.0))
     safety = 100.0 * min(s_g, s_hic) * (0.6 if head_strike else 1.0)
     if collision is not None:
@@ -455,10 +503,13 @@ def simulate(
         },
         "metrics": {
             "peak_head_g": round(peak_head_g, 2),
+            "peak_head_neck_g": round(peak_head_g, 2),
+            "Peak_Head_Neck_G": round(peak_head_g, 2),
             "hic15": round(hic, 1),
             "peak_spine_g": round(peak_spine_g, 2),
             "peak_knee_g": round(peak_knee_g, 2),
             "min_clearance_cm": min_clear_cm,
+            "min_obstacle_clearance_cm": min_clear_cm,
             "landing_error_m": round(landing_error, 3),
             "landed_on": touchdown["surface"] if touchdown else None,
             "touchdown_time_s": touchdown["time_s"] if touchdown else None,

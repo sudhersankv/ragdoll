@@ -193,11 +193,11 @@ def render_wave_frame(
         ghost_layer = canvas.copy()
         for b0, b1 in BONE_LINKS:
             if b0 < len(pts_2d) and b1 < len(pts_2d) and pts_2d[b0] and pts_2d[b1]:
-                # Flash head/neck/spine red on high G-load (>15g)
+                # Flash head/neck/spine red on high G-load (>=8.0g per SPEC.md)
                 limb_col = col_bgr
-                if g_load >= 15.0 and b0 in (0, 1, 2):
+                if g_load >= 8.0 and b0 in (0, 1, 2):
                     limb_col = (60, 30, 255)
-                elif g_load >= 9.0 and b0 in (0, 1):
+                elif g_load >= 5.0 and b0 in (0, 1):
                     limb_col = (0, 165, 255)
                 thickness = 7 if is_best else 4
                 cv2.line(
@@ -211,7 +211,7 @@ def render_wave_frame(
 
         # Draw head sphere & joint nodes
         if pts_2d and pts_2d[0]:
-            head_col = (60, 30, 255) if g_load >= 15.0 else col_bgr
+            head_col = (60, 30, 255) if g_load >= 8.0 else ((0, 165, 255) if g_load >= 5.0 else col_bgr)
             cv2.circle(ghost_layer, (pts_2d[0][0], pts_2d[0][1]), 11 if is_best else 7, head_col, -1, cv2.LINE_AA)
             if is_best:
                 cv2.putText(
