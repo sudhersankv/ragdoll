@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FALLGUY Director</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/styles.css">
+<script type="importmap">
+{ "imports": { "three": "/static/vendor/three.module.js", "three/addons/": "/static/vendor/addons/" } }
+</script>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="logo">FALLGUY</span>
+    <span class="tag">recursive stunt harness</span>
+    <span class="sep"></span>
+    <label class="hsel">World
+      <select id="worldSel"><option value="">loading worlds...</option></select>
+    </label>
+    <label class="btn primary" id="uploadBtn">Upload video
+      <input type="file" id="fileIn" accept="video/mp4,video/webm,video/quicktime,video/*" hidden>
+    </label>
+    <span class="grow"></span>
+    <span id="jobPills" class="pills"></span>
+    <span class="argon">Gemini 4 Argon</span>
+  </header>
+
+  <!-- ============ LEFT: world + stunt director ============ -->
+  <aside id="left">
+    <section class="card" id="buildCard" hidden>
+      <h3>Building world <span class="spin"></span></h3>
+      <div class="kv"><span>Step</span><b id="buildStep">-</b></div>
+      <div class="bar"><i id="buildBar"></i></div>
+      <pre class="log" id="buildLog"></pre>
+    </section>
+
+    <section class="card" id="worldCard">
+      <h3>World <span class="pill dim" id="worldStatus">-</span></h3>
+      <div id="worldMeta" class="meta">Pick a world or upload a location video.</div>
+      <div class="fid">
+        <div class="ring" id="fidRing"><span id="fidScore">-</span><small>fidelity</small></div>
+        <div class="fidtxt">
+          <div class="dim small">Argon verify (render vs video)</div>
+          <ol class="rounds" id="verifyRounds"></ol>
+        </div>
+      </div>
+      <ul class="issues" id="verifyIssues"></ul>
+      <div class="views" id="views"></div>
+      <h4>Edit the replica</h4>
+      <textarea id="editPrompt" rows="2" placeholder="add a crash mat at the end of the hallway"></textarea>
+      <div class="row">
+        <button class="btn primary" id="editBtn">Apply edit</button>
+        <button class="btn" id="verifyBtn" title="One more Argon render-vs-video critique">Re-verify</button>
+      </div>
+    </section>
+
+    <section class="card" id="stuntCard">
+      <h3>Stunt director</h3>
+      <div class="row">
+        <select id="stuntSel" class="grow"><option value="">new stunt...</option></select>
+      </div>
+      <textarea id="brief" rows="3" placeholder="Sprint down the hallway, vault the bench and roll onto the crash mat"></textarea>
+      <div class="row">
+        <label class="small dim">Length <input id="duration" type="number" min="2" max="15" step="0.5" value="6"> s</label>
+        <span class="grow"></span>
+        <button class="btn primary" id="planBtn">Plan with Argon</button>
+      </div>
+      <div id="questions" hidden>
+        <h4>Argon asks</h4>
+        <div id="qList"></div>
+        <button class="btn" id="answerBtn">Send answers + re-plan</button>
+      </div>
+      <h4>Recursive loop</h4>
+      <div class="row">
+        <button class="btn primary" id="runBtn">Run v1</button>
+        <button class="btn accent" id="improveBtn">Improve</button>
+      </div>
+      <h4>Director steer</h4>
+      <div class="chips" id="steerChips">
+        <button data-s="Slower, softer approach">Slower approach</button>
+        <button data-s="Softer landing, absorb with knees">Softer landing</button>
+        <button data-s="Tighter clearance around obstacles">Tighter clearance</button>
+        <button data-s="Keep the performer framed in camera">Stay in frame</button>
+      </div>
+      <textarea id="steer" rows="2" placeholder="Steer the next plan: 'land 1 m further from the wall'"></textarea>
+      <button class="btn" id="steerBtn">Steer + re-plan</button>
+      <div id="stuntMsg" class="small dim"></div>
+    </section>
+  </aside>
+
+  <!-- ============ CENTRE: viewport ============ -->
+  <main id="stage">
+    <canvas id="gl"></canvas>
+    <img id="bd0" class="backdrop" alt="">
+    <img id="bd1" class="backdrop" alt="">
+    <div id="lbl0" class="vplabel" hidden></div>
+    <div id="lbl1" class="vplabel" hidden></div>
+    <div class="toolbar">
+      <span class="seg">
+        <button data-view="ref" class="on">Camera match</button>
+        <button data-view="orbit">Free orbit</button>
+      </span>
+      <label class="chk"><input type="checkbox" id="tMesh" checked> mesh</label>
+      <label class="chk"><input type="checkbox" id="tColl"> collision</label>
+      <label class="chk"><input type="checkbox" id="tStress" checked> stress</label>
+      <label class="chk"><input type="checkbox" id="tSplit"> side by side</label>
+      <label class="chk"><input type="checkbox" id="tFollow"> follow</label>
+      <label class="chk" title="Real reference frame behind the 3D"><input type="checkbox" id="tFrame"> video frame</label>
+      <div class="takes" id="takeRow"></div>
+    </div>
+    <div class="stresslegend" id="stressLegend" hidden>
+      <span><i style="background:var(--ok)"></i>&lt; 0.5 of limit</span>
+      <span><i style="background:var(--warn)"></i>&lt; 1</span>
+      <span><i style="background:var(--bad)"></i>&ge; limit</span>
+    </div>
+    <div id="empty" class="empty" hidden>
+      <h2>Build the location</h2>
+      <p>Upload a phone video of the place. Argon turns it into a game-style 3D set, checks it against the video, and then stages stunts in it.</p>
+      <label class="btn primary big">Upload a video<input type="file" id="fileIn2" accept="video/*" hidden></label>
+    </div>
+    <div id="status" hidden></div>
+    <div class="hud" id="hud"></div>
+    <footer class="timeline">
+      <button class="btn" id="play">Play</button>
+      <input type="range" id="scrub" min="0" max="1" step="0.001" value="0">
+      <span id="time">0.00 / 0.00 s</span>
+      <select id="speed"><option value="1">1x</option><option value="0.5">0.5x</option><option value="0.25">0.25x</option><option value="2">2x</option></select>
+    </footer>
+  </main>
+
+  <!-- ============ RIGHT: telemetry ============ -->
+  <aside id="right">
+    <section class="card">
+      <h3>Gates <span class="dim small" id="gateTake"></span></h3>
+      <div class="gates" id="gates"></div>
+      <div class="small" id="gateNotes"></div>
+    </section>
+    <section class="card">
+      <h3>Convergence <span class="dim small">stunt score per take</span></h3>
+      <div class="chartwrap" id="convWrap"><svg id="conv"></svg><div class="tip" id="convTip" hidden></div></div>
+      <div class="legend" id="convLegend"></div>
+      <div class="tablewrap"><table id="loopTable"></table></div>
+    </section>
+    <section class="card">
+      <h3>Anatomical telemetry <span class="dim small" id="bioTake"></span></h3>
+      <div class="anat">
+        <svg id="body" viewBox="0 0 100 210"></svg>
+        <div class="meters" id="meters"></div>
+      </div>
+      <div class="small warnc" id="bioFlags"></div>
+      <div class="chartwrap"><canvas class="chart" id="chartG"></canvas></div>
+      <div class="chartwrap"><canvas class="chart" id="chartK"></canvas></div>
+    </section>
+    <section class="card">
+      <h3>Argon critique</h3>
+      <div class="tabs" id="critTabs"></div>
+      <div class="critique" id="crit"><span class="dim">Run a take to get Argon's critique.</span></div>
+    </section>
+    <section class="card" id="videoCard" hidden>
+      <h3>Render <span class="dim small" id="videoTake"></span></h3>
+      <video id="video" controls muted playsinline></video>
+    </section>
+  </aside>
+</div>
+<div id="lightbox" hidden><img alt=""><div class="cap"></div></div>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

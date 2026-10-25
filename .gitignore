@@ -18,3 +18,5 @@ dist/
 worlds/
 stunts/
 .pytest_cache/
+jobs/
+uploads/

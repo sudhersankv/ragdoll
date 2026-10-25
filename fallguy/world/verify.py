@@ -21,9 +21,9 @@ Current objects (center [x, y], base_z, facing_deg, size [width, depth, height];
 
 Score 0-100 the LAYOUT FIDELITY: are the right objects there, in the right places, with the right sizes, shapes and
 colours, compared with the video, from both cameras? Then list the concrete problems (most important first, at most
-12): misplaced or mis-sized objects (replace with the full corrected object, same id), missing objects (add), and
+10): misplaced or mis-sized objects (replace with the full corrected object, same id), missing objects (add), and
 wrong / duplicate objects (remove). Keep the asset conventions (category, look, rgb, accent, center, base_z,
-facing_deg, size, hazard, collide, parts=[] unless category other).
+facing_deg, size, hazard, collide). Be concise.
 """
 
 
@@ -34,7 +34,7 @@ def verify(wdir, rnd=1, apply=True):
     log = B.log_path(wdir)
     parts = []
     for i, p in enumerate([views["side_by_side"], views["oblique"], views["top"], "views/argon_grid_ref.png"], 1):
-        part, _ = A.image_part(os.path.join(wdir, p), max_side=2200 if i == 1 else 1600)
+        part, _ = A.image_part(os.path.join(wdir, p), max_side=1600 if i == 1 else 960)
         parts += [{"text": f"Image {i}:"}, part]
     parts.append({"text": VERIFY_PROMPT.format(objects=json.dumps(B.compact_objects(world)),
                                                cam_h=world["camera"]["ref"]["pos"][2],

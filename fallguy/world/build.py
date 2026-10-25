@@ -49,8 +49,8 @@ def part_schema():
                  "material": A._e(AS.LOOKS)})
 
 
-def object_schema():
-    return A._o({
+def object_schema(with_parts=True):
+    props = {
         "id": A._s("short snake_case id, unique"), "label": A._s("what it is, a few words"),
         "category": A._e(AS.CATEGORIES, "asset category; 'other' only if nothing fits (then give parts)"),
         "look": A._e(AS.LOOKS, "surface look of the main body"),
@@ -68,7 +68,10 @@ def object_schema():
                       "[extent along x, extent along y, thickness]"),
         "hazard": A._b("could hurt a performer (hard edge, glass, a drop, screen, metal stand)"),
         "collide": A._b("solid for the performer (false for decals, floor patches, lights, far-away scenery)"),
-        "parts": A._a(part_schema(), "ONLY for category 'other': 1-8 primitives building its shape; [] otherwise")})
+    }
+    if with_parts:
+        props["parts"] = A._a(part_schema(), "ONLY for category 'other': 1-8 primitives building its shape; [] otherwise")
+    return A._o(props)
 
 
 def layout_schema():
@@ -88,15 +91,15 @@ def change_schema():
                  "object_id": A._s("id of an existing object (replace/remove) or a new id (add)"),
                  "problem": A._s("what was wrong / what changes, concretely"),
                  "severity": A._e(A.SEVERITIES),
-                 "object": object_schema()})
+                 "object": object_schema(with_parts=False)})
 
 
 def critique_schema():
     return A._o({
         "score": A._n("layout fidelity 0-100 of the replica vs the real place (positions, sizes, colours, coverage)"),
         "summary": A._s("one sentence"),
-        "issues": A._a(change_schema(), "only real layout problems; for replace/add give the FULL corrected object; "
-                                        "for remove any minimal object")})
+        "issues": A._a(change_schema(), "at most 10 real layout problems, most important first; for replace/add "
+                                        "give the FULL corrected object; for remove any minimal object")})
 
 
 def edit_schema():
