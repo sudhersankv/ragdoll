@@ -12,7 +12,8 @@ z = 0, +z up, phone at x = 0, y = 0 looking along +x (down the hallway), +y = ca
 Image 1 = real reference frame | replica (side-by-side, plus the end of the pan), image 2 = top-down view of the
 replica with collision primitives, image 3 = the reference frame with the world floor grid (1 m).
 
-Current objects (center [x, y], base_z, facing_deg, size [width, depth, height]):
+Current objects (center [x, y], base_z, facing_deg, size [width, depth, height]; floor/ceiling/atrium_void size =
+[extent x, extent y, thickness]):
 {objects}
 
 Director's request: "{prompt}"

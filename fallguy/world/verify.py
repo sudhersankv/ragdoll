@@ -15,7 +15,8 @@ from the end-of-pan camera; (2) oblique overview of the replica (ceiling hidden)
 with the collision primitives (blue); (4) the reference frame with our world floor grid (yellow = constant x,
 cyan = constant y, 1 m) to read positions.
 
-Current objects (center [x, y], base_z, facing_deg, size [width, depth, height]):
+Current objects (center [x, y], base_z, facing_deg, size [width, depth, height]; floor/ceiling/atrium_void size =
+[extent x, extent y, thickness]):
 {objects}
 
 Score 0-100 the LAYOUT FIDELITY: are the right objects there, in the right places, with the right sizes, shapes and

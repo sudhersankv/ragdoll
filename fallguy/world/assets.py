@@ -105,6 +105,9 @@ def strip(A, B, w0, w1, axes=(0, 1, 2)):
 def polyslab(pts, z0, z1):
     """Vertical prism over a star-shaped 2-D polygon (fan triangulated from its centroid)."""
     pts = np.asarray(pts, float)
+    x, y = pts[:, 0], pts[:, 1]
+    if np.dot(x, np.roll(y, -1)) - np.dot(np.roll(x, -1), y) < 0:      # make it counter-clockwise
+        pts = pts[::-1]
     n = len(pts)
     c = pts.mean(0)
     V = np.concatenate([np.c_[pts, np.full(n, z0)], np.c_[pts, np.full(n, z1)], [[*c, z0], [*c, z1]]])
@@ -112,9 +115,7 @@ def polyslab(pts, z0, z1):
     for i in range(n):
         j = (i + 1) % n
         F += [[2 * n, j, i], [2 * n + 1, n + i, n + j], [i, j, n + j], [i, n + j, n + i]]
-    m = trimesh.Trimesh(V, F, process=True)
-    trimesh.repair.fix_normals(m)
-    return m
+    return trimesh.Trimesh(V, F, process=True)
 
 
 def arc_pts(cx, cz, r, a0, a1, n=24):
@@ -140,8 +141,11 @@ def mix(c, k):
 
 # ----------------------------------------------------------------------------- category builders
 # each returns (parts [(look, rgb, mesh)], collision [(type, center_local, full_dims_local)])
+AREA = {"floor", "ceiling", "atrium_void"}       # size = [extent along x, extent along y, thickness] at facing 0
+
+
 def b_floor(W, D, H, o):
-    return [(o["look"], o["rgb"], box([0, 0, -0.05], [D, W, 0.1]))], []
+    return [(o["look"], o["rgb"], box([0, 0, -0.05], [W, D, 0.1]))], []
 
 
 def b_floor_patch(W, D, H, o):
@@ -158,6 +162,7 @@ def b_floor_line(W, D, H, o):
 
 def b_ceiling(W, D, H, o):
     t = max(0.08, min(H, 0.4))
+    W, D = D, W                                    # area convention: W = extent along local x
     parts = [(o["look"], o["rgb"], box([0, 0, t / 2], [D, W, t]))]
     # exposed beams under the slab every ~2 m along the longer axis
     acc = o["accent"]
@@ -563,7 +568,7 @@ def b_stairs(W, D, H, o):
 
 
 def b_atrium_void(W, D, H, o):
-    return [(o["look"], o["rgb"], box([0, 0, -0.1], [D, W, 0.2]))], []
+    return [(o["look"], o["rgb"], box([0, 0, -0.1], [W, D, 0.2]))], []
 
 
 def b_other(W, D, H, o):

@@ -64,7 +64,8 @@ def object_schema():
                            "wall, curtain or railing: the direction its visible face points (its length runs "
                            "perpendicular to that)."),
         "size": A._v3("[width (side to side seen from its front; for walls/curtains/railings = their LENGTH), "
-                      "depth (front to back; thickness), height] in metres"),
+                      "depth (front to back; thickness), height] in metres; for floor / ceiling / atrium_void: "
+                      "[extent along x, extent along y, thickness]"),
         "hazard": A._b("could hurt a performer (hard edge, glass, a drop, screen, metal stand)"),
         "collide": A._b("solid for the performer (false for decals, floor patches, lights, far-away scenery)"),
         "parts": A._a(part_schema(), "ONLY for category 'other': 1-8 primitives building its shape; [] otherwise")})
@@ -285,7 +286,10 @@ def scene_xml(world, visuals, mats):
     fw = np.asarray(cam.get("forward") or [1, 0, 0], float)
     fw2 = fw[:2] / max(1e-6, np.linalg.norm(fw[:2]))
     kx, ky = cam["pos"][0] + 3.5 * fw2[0], cam["pos"][1] + 3.5 * fw2[1]      # over the action, ~3.5 m ahead
-    xs.append(f'    <light name="key" pos="{kx:.2f} {ky:.2f} {lz:.2f}" dir="0.12 -0.08 -1" diffuse="0.5 0.48 0.45" '
+    # the shadow-casting key sits below every high object (pipes, beams, pendants) so they don't shade the floor
+    highs = [o["base_z"] for o in world["objects"] if o["base_z"] > 2.3 and o["category"] not in ("atrium_void",)]
+    kz = max(2.4, min([lz] + highs) - 0.15)
+    xs.append(f'    <light name="key" pos="{kx:.2f} {ky:.2f} {kz:.2f}" dir="0.12 -0.08 -1" diffuse="0.5 0.48 0.45" '
               f'ambient="0.3 0.3 0.31" specular="0.2 0.2 0.2" castshadow="true" cutoff="88" exponent="1"/>')
     # soft directional fills from both sides (spot fills without shadows black out back faces in MuJoCo's renderer)
     for i, (dx, dy) in enumerate([(0.3, -0.5), (-0.4, 0.6), (0.6, 0.2)]):
@@ -369,7 +373,7 @@ def render_views(world, wdir, tag="r0"):
         free = mujoco.MjvCamera()
         free.lookat[:] = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, 0.3]
         span = max(hi[0] - lo[0], hi[1] - lo[1], 6)
-        free.distance, free.azimuth, free.elevation = span * 0.75, 25.0, -42.0
+        free.distance, free.azimuth, free.elevation = span * 0.95, 12.0, -52.0
         ims["oblique"] = shot({1}, cam=free, hide_ceiling=True)
         free.azimuth, free.elevation, free.distance = 90.0, -89.9, span * 0.95
         ims["top"] = shot({1, 2}, cam=free, hide_ceiling=True)
@@ -409,6 +413,7 @@ Measurements: {meas}
 
 Library categories (choose the best fit; sizes are [width, depth, height]):
 {cats}
+- floor, ceiling, atrium_void are AREAS: size = [extent along x, extent along y, thickness], facing_deg 0.
 - Walls, curtains, railings: give LENGTH as width, thickness as depth, facing_deg = the direction their visible face
   points (a wall on the camera's left side of a hallway along x faces -90; one across the far end faces 180).
 - curtain = floor-to-ceiling pleated drape (we model the folds); glass_railing = glass panels with a metal handrail
@@ -542,7 +547,11 @@ def build(media, out="worlds", rounds=2, target=80.0, long_fov=R.DEFAULT_LONG_FO
         f"{world['mesh']['triangles']} triangles")
     from fallguy.world import verify as V
     for rnd in range(1, rounds + 1):
-        res = V.verify(wdir, rnd, apply=True)
+        try:
+            res = V.verify(wdir, rnd, apply=True)
+        except A.ArgonError as ex:          # keep the world; the director can run `verify` again
+            say(f"verify round {rnd} failed: {A.redact(str(ex))}; keeping the current world")
+            break
         if res["score"] >= target:
             say(f"verify round {rnd}: score {res['score']} >= {target}; stopping")
             break
