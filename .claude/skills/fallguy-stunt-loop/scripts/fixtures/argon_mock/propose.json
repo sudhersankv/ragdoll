@@ -1,0 +1,13 @@
+{
+  "rationale": "No take has run yet, so wave 1 spreads four complete barrel rolls around the plan: a conservative low and slow take with a soft landing, a nominal take, a higher and faster take for extra clearance over the 1.3 m plants, and one that delays the tuck to change the rotation timing.",
+  "candidates": [
+    {"label": "conservative low roll", "why": "Lowest arc that should still clear the 0.85 m shelf top; soft landing to keep head G well under 8.",
+     "params": {"approach_speed": 3.0, "takeoff_x": -1.0, "takeoff_vz": 3.3, "rot_roll_deg": 360, "rot_pitch_deg": 0, "rot_yaw_deg": 0, "lean_deg": 10, "tuck": 0.6, "tuck_start": 0.15, "tuck_end": 0.75, "arm_reach_deg": 150, "landing_compliance": 0.8, "mat_offset_x": 0.0, "mat_offset_y": 0.0, "camera": "hero"}},
+    {"label": "nominal roll", "why": "The plan's layout as drawn: 3.5 m/s run-up, 3.6 m/s take-off, full 360 degree roll timed to the middle of the flight.",
+     "params": {"approach_speed": 3.5, "takeoff_x": -1.0, "takeoff_vz": 3.6, "rot_roll_deg": 360, "rot_pitch_deg": 0, "rot_yaw_deg": 0, "lean_deg": 15, "tuck": 0.5, "tuck_start": 0.15, "tuck_end": 0.7, "arm_reach_deg": 160, "landing_compliance": 0.6, "mat_offset_x": 0.0, "mat_offset_y": 0.0, "camera": "hero"}},
+    {"label": "high fast roll", "why": "More height and speed for clearance over the tallest plants (top about 1.33 m); mat nudged 0.2 m out for the longer flight.",
+     "params": {"approach_speed": 4.2, "takeoff_x": -1.0, "takeoff_vz": 3.9, "rot_roll_deg": 360, "rot_pitch_deg": 0, "rot_yaw_deg": 0, "lean_deg": 20, "tuck": 0.4, "tuck_start": 0.1, "tuck_end": 0.65, "arm_reach_deg": 170, "landing_compliance": 0.6, "mat_offset_x": 0.2, "mat_offset_y": 0.0, "camera": "hero"}},
+    {"label": "late tuck roll", "why": "Exploratory: keeps the body long over the shelf and tucks late to finish the roll before landing.",
+     "params": {"approach_speed": 3.6, "takeoff_x": -1.0, "takeoff_vz": 3.7, "rot_roll_deg": 360, "rot_pitch_deg": 0, "rot_yaw_deg": 0, "lean_deg": 15, "tuck": 0.8, "tuck_start": 0.35, "tuck_end": 0.85, "arm_reach_deg": 120, "landing_compliance": 0.7, "mat_offset_x": 0.0, "mat_offset_y": 0.0, "camera": "side"}}
+  ]
+}
