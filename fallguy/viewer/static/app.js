@@ -30,7 +30,7 @@ renderer.setScissorTest(true);
 const scene = new THREE.Scene();
 const BG = new THREE.Color('#0b0d10');
 scene.background = BG;
-scene.add(new THREE.HemisphereLight(0xffffff, 0x404048, 1.6));
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8780, 1.6));  // light ground bounce: ceilings and undersides of the replica are not black
 const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(4, -3, 8); scene.add(sun);
 scene.add(S.collGroup, S.visGroup);
 const camera = new THREE.PerspectiveCamera(60, 1, 0.03, 300);
@@ -74,7 +74,8 @@ async function loadWorld() {
       const grid = new THREE.GridHelper(40, 40, 0x445060, 0x262c34);
       grid.rotation.x = Math.PI / 2; grid.position.set(g.pos[0], g.pos[1], g.pos[2] + 0.002);
       grid.userData.floor = true;
-      S.visGroup.add(grid);
+      // a modelled replica has its own floor: the debug grid would draw over it as tile lines
+      if (!S.info.glb) S.visGroup.add(grid);
       if (!S.info.glb) {
         const pl = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: 0x3a3d42 }));
         pl.position.fromArray(g.pos); S.visGroup.add(pl);
@@ -113,6 +114,9 @@ async function loadWorld() {
     });
     S.worldMesh = root; scene.add(root);
     applyUnlit();
+    // the modelled replica is the view; collision primitives stay one click away (or ?coll=1)
+    $('tColl').checked = params.get('coll') === '1';
+    S.collGroup.visible = $('tColl').checked;
   }
 }
 
@@ -286,7 +290,16 @@ function setView(v) {
       S.orbitInit = true;
       const c = S.info.camera;
       const tgt = focusPoint();
-      if (c) {
+      const pel = S.active && S.perf[S.active]?.bodies?.pelvis;
+      if (c && pel) {
+        // performer loaded: a raised chase view from the reference camera's side, about 4.5 m from the H1,
+        // so it is in shot inside the replica rather than hidden behind the set
+        const away = new THREE.Vector3().fromArray(c.pos).sub(tgt).setZ(0);
+        if (away.length() < 0.5) away.set(-1, 0, 0);
+        const side = new THREE.Vector3(-away.y, away.x, 0).normalize();
+        camera.position.copy(tgt).add(away.normalize().multiplyScalar(4.2)).add(side.multiplyScalar(-1.2));
+        camera.position.z = Math.max(tgt.z + 1.4, 2.4);
+      } else if (c) {
         camera.position.fromArray(c.pos);
         const back = camera.position.clone().sub(tgt).setZ(0).normalize().multiplyScalar(2.5);
         camera.position.add(back).add(new THREE.Vector3(0, 0, 2.0));
@@ -531,8 +544,9 @@ async function main() {
     $('stuntPanel').hidden = !S.takes.length;
     if (withTraj.length < 2) $('tSplit').parentElement.hidden = true;
     renderTakeRow(); renderPeaks(); renderCritique(); renderWorldInfo(); setVideo();
-    setView(S.info.camera ? S.view : 'orbit');
     if (params.get('t')) S.t = parseFloat(params.get('t'));
+    for (const p of Object.values(S.perf)) { poseTake(p, S.t); p.group.updateMatrixWorld(true); }  // pose the H1 first, so the orbit view frames it at ?t
+    setView(S.info.camera ? S.view : 'orbit');
     if (params.get('bd')) { $('bdOp').value = params.get('bd'); $('bdOp').dispatchEvent(new Event('input')); }
     if (params.get('split') === '0') $('tSplit').checked = false;
     if (params.get('plate') === '1') $('tPlate').checked = true;

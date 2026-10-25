@@ -320,6 +320,10 @@ class Choreography:
         z1 = self._pose_height(pose) if pose else z0
         p1 = math.radians(pose.get("pitch", 0.0)) if pose else p0
         Tb = min(0.5, 0.5 * ph["duration"])
+        if idx == 0 and pose is not None:
+            # opening hold from the standing start: settle into the pose over most of the hold, so a 0.5 s
+            # "ready crouch" does not snap 0.24 m in 0.25 s and log a ~5 g head / 3 x BW spike at rest
+            Tb = min(1.0, 0.9 * ph["duration"])
         target = _arm_part(pose) if pose else None
         for j in range(1, n + 1):
             w = smooth(j * DT / Tb) if Tb > 0 else 1.0

@@ -224,8 +224,11 @@ def assemble(world, wdir):
     # a wide ground fill below everything (no sky through gaps between floor slabs / under the atrium)
     zmin = min([o["base_z"] for o in world["objects"]] + [0.0]) - 0.6
     frgb = world["floor"]["rgb"]
-    g = trimesh.creation.box(extents=[120, 120, 0.1])
-    g.apply_translation([0, 0, zmin - 0.05])
+    pts = np.array([[*o["center"], max(o["size"][:2]) / 2] for o in world["objects"]] or [[0, 0, 5]])
+    glo = (pts[:, :2] - pts[:, 2:]).min(0) - 3
+    ghi = (pts[:, :2] + pts[:, 2:]).max(0) + 3
+    g = trimesh.creation.box(extents=[*(ghi - glo), 0.1])        # sized to the place (keeps viewer framing tight)
+    g.apply_translation([*((ghi + glo) / 2), zmin - 0.05])
     _write_obj(os.path.join(mdir, "ground_fill.obj"), g)
     key = _mat_key("concrete", AS.mix(frgb, 0.8))
     visuals.append(("ground_fill", "ground_fill.obj", key))
