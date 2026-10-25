@@ -1,0 +1,39 @@
+{
+  "notes": "Mock fixture: a plain corridor 3 m wide and 12 m long with a wall on the performer's right (-Y), a waist-high railing on the left (+Y) and an open area at the near end on -Y. The camera stands at the near end at eye height looking back down the corridor.",
+  "source": {"ref_time_sec": 1.0},
+  "camera": {"match": {"pos": [3.0, 0.3, 1.5], "lookat": [-6.0, 0.0, 1.0], "fovy": 68}},
+  "room": {"x_min": -12.0, "x_max": 4.5, "y_min": -6.0, "y_max": 2.5, "ceiling_z": 3.5,
+           "floor_rgb": [0.5, 0.5, 0.48], "wall_rgb": [0.9, 0.9, 0.88], "ceiling_rgb": [0.75, 0.75, 0.75],
+           "floor_material": "concrete"},
+  "obstacles": [
+    {"id": "right_wall", "kind": "box", "pos": [-5.5, -1.6, 1.5], "size": [5.0, 0.05, 1.5], "yaw_deg": 0,
+     "rgb": [0.92, 0.92, 0.9], "material": "concrete", "role": "wall", "hazard": true},
+    {"id": "railing", "kind": "box", "pos": [-4.5, 1.5, 0.55], "size": [7.0, 0.03, 0.55], "yaw_deg": 0,
+     "rgb": [0.75, 0.85, 0.9], "material": "glass", "role": "railing", "hazard": true},
+    {"id": "sign_stand", "kind": "cylinder", "pos": [-1.0, 1.1, 0.6], "size": [0.03, 0.6, 0], "yaw_deg": 0,
+     "rgb": [0.7, 0.7, 0.72], "material": "metal", "role": "prop", "hazard": false},
+    {"id": "door_frame", "kind": "box", "pos": [-11.8, 0.0, 1.05], "size": [0.1, 0.5, 1.05], "yaw_deg": 0,
+     "rgb": [0.95, 0.95, 0.95], "material": "wood", "role": "structure", "hazard": true}
+  ],
+  "set_dressing": {"curtain": {"present": false}, "couches": [], "chairs": [], "people": [], "speakers": [],
+                   "ceiling_fixtures": [], "screens": []},
+  "crash_mats": [],
+  "stunt": {
+    "notes": "The performer runs toward the camera (+X). The camera's left is the performer's right, -Y, where the open area is.",
+    "summary": "runs down the corridor toward the camera and turns to the camera's left into the open area",
+    "start": {"pos": [-9.0, 0.0], "heading_deg": 0},
+    "phases": [
+      {"kind": "hold", "name": "ready", "duration": 0.5, "pose": "stand"},
+      {"kind": "move", "name": "run", "path": [[-9.0, 0.0], [0.5, 0.0], [2.0, -3.5]], "speed": 4.0,
+       "accel_time": 1.0, "decel_time": 1.0, "turn_radius": 2.0, "lean_scale": 1.0},
+      {"kind": "hold", "name": "stop", "duration": 0.8, "pose": "stand"}
+    ],
+    "tunables": [
+      {"name": "run_speed", "path": "phases[1].speed", "min": 2.0, "max": 6.5, "unit": "m/s", "doc": "cruise speed"},
+      {"name": "turn_radius", "path": "phases[1].turn_radius", "min": 0.8, "max": 4.0, "unit": "m", "doc": "corner rounding of the turn"},
+      {"name": "turn_x", "path": "phases[1].path[1][0]", "min": -1.5, "max": 1.5, "unit": "m", "doc": "where the turn starts along X"}
+    ],
+    "target": {"kind": "zone", "pos": [2.0, -3.5], "radius": 0.65},
+    "default_camera": "match_follow"
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "events": [
+    {
+      "t_sec": 0.0,
+      "event": "other",
+      "note": "Mock: performer stands at the start."
+    },
+    {
+      "t_sec": 0.5,
+      "event": "start",
+      "note": "Starts moving."
+    },
+    {
+      "t_sec": 1.0,
+      "event": "other",
+      "note": "Accelerating along the path."
+    },
+    {
+      "t_sec": 1.5,
+      "event": "other",
+      "note": "At cruise speed."
+    },
+    {
+      "t_sec": 2.5,
+      "event": "turn",
+      "note": "Turns as planned."
+    },
+    {
+      "t_sec": 3.5,
+      "event": "stop",
+      "note": "Comes to a stop."
+    },
+    {
+      "t_sec": 4.5,
+      "event": "settled",
+      "note": "Stands still."
+    }
+  ],
+  "summary": "Mock critique: the take performs the planned phases in order; the arms swing a little stiffly.",
+  "phases_seen": [],
+  "order_ok": true,
+  "direction": {
+    "screen_side": "none",
+    "matches_brief": true,
+    "notes": "mock"
+  },
+  "motion": {
+    "plausible": true,
+    "foot_skating": false,
+    "notes": "mock"
+  },
+  "brief_match": {
+    "matches": true,
+    "missing": []
+  },
+  "reaches_target": true,
+  "unnatural_motion": [
+    {
+      "t_sec": 1.5,
+      "issue": "Arms swing a little stiffly.",
+      "severity": "medium"
+    },
+    {
+      "t_sec": 3.4,
+      "issue": "Feet slide while stopping.",
+      "severity": "high"
+    }
+  ],
+  "framing": {
+    "in_frame_pct": 95,
+    "subject_size": "medium",
+    "notes": "mock"
+  },
+  "style_score": 76,
+  "gate2_pass": false,
+  "proposed_changes": []
+}

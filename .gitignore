@@ -13,3 +13,8 @@ dist/
 .scratch/
 
 
+
+# FALLGUY run outputs
+worlds/
+stunts/
+.pytest_cache/

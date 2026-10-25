@@ -1,0 +1,9 @@
+{
+  "rationale": "Mock: no take has run yet, so wave 1 spreads four complete attempts over the tunables: the plan as written, a safer take, a bolder take and an in-between one from the static camera.",
+  "candidates": [
+    {"label": "plan as written", "why": "mock: every tunable at the plan's value", "blend": 0.0},
+    {"label": "safer take", "why": "mock: halfway from the plan's values toward each minimum", "blend": -0.6},
+    {"label": "bolder take", "why": "mock: halfway from the plan's values toward each maximum", "blend": 0.6},
+    {"label": "static camera", "why": "mock: a little below the plan's values, judged from the fixed camera", "blend": -0.25, "camera": "match"}
+  ]
+}
