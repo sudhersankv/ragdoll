@@ -107,7 +107,3 @@ npm install @mujoco/mujoco three @types/three @react-three/fiber @react-three/dr
    * **3-Shot Sequence Timeline** to stitch 2–3 stunt beats into a continuous 8–10 second action sequence.
    * **Interactive Director Steer Controls:** Drag obstacles in 3D, orbit camera 360°, or click quick Director Steer buttons (*"Higher Vault"*, *"Tighter Clearance"*, *"Flip at Apex"*).
 
----
-
-## 🧰 Agent Skills Included in `.agents/skills/`
-This repository comes pre-configured with **47 agent skills** in `.agents/skills/` (including Matt Pocock's engineering workflow skills like `grill-me`, `to-spec`, `to-tickets`, `implement`, `tdd` and UI skills like `baseline-ui`, `improve-ui`, `component-canvas`).

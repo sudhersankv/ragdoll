@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.env
+.env.local
+*.mp4
+*.npz
+.DS_Store
+.agents/
+.scratch/
+
+
