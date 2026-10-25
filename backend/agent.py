@@ -630,6 +630,91 @@ def _normalize_location_boxes(raw: Any) -> List[Dict[str, Any]]:
     return out
 
 
+_PART_MATERIALS = {"wood", "fabric", "metal", "paint", "glass", "plastic", "stone"}
+
+
+def _normalize_scene_parts(raw: Any) -> List[Dict[str, Any]]:
+    """Solid mesh parts for the environment: boxes, cylinders, and convex pieces."""
+    if not isinstance(raw, list):
+        return []
+    used: set = set()
+    out: List[Dict[str, Any]] = []
+    for index, part in enumerate(raw[:40]):
+        if not isinstance(part, dict):
+            continue
+        pos = part.get("pos")
+        size = part.get("size")
+        if not isinstance(pos, (list, tuple)) or len(pos) != 3:
+            continue
+        if not isinstance(size, (list, tuple)) or len(size) != 3:
+            continue
+        try:
+            pos_f = [float(v) for v in pos]
+            size_f = [abs(float(v)) for v in size]
+        except (TypeError, ValueError):
+            continue
+        if any(not math.isfinite(v) for v in pos_f + size_f):
+            continue
+        if any(v > 4.0 for v in size_f):
+            size_f = [v / 2.0 if v > 4.0 else v for v in size_f]
+        size_f = [min(12.0, max(0.02, v)) for v in size_f]
+        oid = _slug_geom_id(part.get("id") or part.get("name"), index, used)
+        if oid in ("floor", "ground", "humanoid", "stuntman", "ghost"):
+            continue
+        typ = str(part.get("type") or "box").strip().lower()
+        if typ not in ("box", "cylinder", "convex"):
+            typ = "box"
+        material = str(part.get("material") or "paint").strip().lower()
+        if material not in _PART_MATERIALS:
+            material = "paint"
+        rgba = part.get("rgba")
+        if not (isinstance(rgba, (list, tuple)) and len(rgba) >= 3):
+            rgba = [0.55, 0.5, 0.46, 1]
+        color = [min(1.0, max(0.0, float(rgba[0]))), min(1.0, max(0.0, float(rgba[1]))), min(1.0, max(0.0, float(rgba[2])))]
+        alpha = 0.4 if material == "glass" else 1.0
+        item: Dict[str, Any] = {
+            "id": oid,
+            "type": typ,
+            "material": material,
+            "pos": [round(v, 3) for v in pos_f],
+            "size": [round(v, 3) for v in size_f],
+            "is_hazard": False if oid == "crash_mat" else bool(part.get("is_hazard", True)),
+            "rgba": [round(color[0], 3), round(color[1], 3), round(color[2], 3), alpha],
+        }
+        if typ == "convex":
+            verts = []
+            for vertex in part.get("vertices") or []:
+                if not isinstance(vertex, (list, tuple)) or len(vertex) != 3:
+                    continue
+                try:
+                    point = [float(v) for v in vertex]
+                except (TypeError, ValueError):
+                    continue
+                if any(not math.isfinite(v) or abs(v) > 8 for v in point):
+                    continue
+                verts.append([round(v, 3) for v in point])
+            if len(verts) >= 4:
+                item["vertices"] = verts[:16]
+            else:
+                item["type"] = "box"
+        out.append(item)
+    return out
+
+
+def _parts_as_boxes(parts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "id": part["id"],
+            "type": "box",
+            "pos": part["pos"],
+            "size": part["size"],
+            "is_hazard": part["is_hazard"],
+            "rgba": part["rgba"],
+        }
+        for part in parts
+    ]
+
+
 def _select_choreo_preset(stunt_brief: str, video_name: str = "") -> Dict[str, Any]:
     """Select the closest base geometry & Wave 1 seeds from the video description/brief."""
     combined = f"{stunt_brief or ''} {video_name or ''}".lower()
@@ -731,26 +816,28 @@ def reconstruct_scene_from_media(
                 )
             else:
                 mode_desc = (
-                    "LOCATION REPLICA: Watch the entire video from start to end. Rebuild only the solid objects that are actually in that place as MuJoCo boxes. Do not invent a generic stunt set, a couch, or a crash mat unless that object is visible."
+                    "LOCATION MESH: Watch the entire video from start to end. Build a solid 3D set of the real place, the way a game builds a level from separate mesh parts. Do not invent a generic stunt set, a couch, or a crash mat unless that object is visible."
                 )
 
-            prompt = f"""You are RAGDOLL's location reconstructor. Gemini 4 Argon watches a real place and emits a MuJoCo collision replica of it. There is no humanoid in this stage.
+            prompt = f"""You are RAGDOLL's environment builder. Gemini 4 Argon watches a real place and writes the mesh parts of a MuJoCo set. There is no person in this stage.
 
 MODE: {mode_desc}
 MEDIA INPUT MODE: {video_input_mode} (video_name="{video_name or 'location_video.mp4'}")
-EDIT PROMPT: "{env_prompt or 'None. Replica comes only from the video.'}"
+EDIT PROMPT: "{env_prompt or 'None. The set comes only from the video.'}"
 LATER STUNT CONTEXT (do not add objects for this): "{stunt_brief}"
-CURRENT BOXES: {json.dumps(current_obstacles or [], indent=2)}
+CURRENT PARTS: {json.dumps(current_obstacles or [], indent=2)}
 
-Coordinate frame: MuJoCo Z-up, metres. X is across the ground in front of the camera, Y is depth, Z is up. Box "size" is half-extents. "pos" is the box center. The floor is an implicit plane; do not emit a floor. Do not emit a person, mannequin, or ghost.
+Coordinate frame: MuJoCo Z-up, metres. X is across the ground in front of the camera, Y is depth, Z is up. "size" is half-extents. "pos" is the part center. The floor is an implicit plane; do not emit a floor. Do not emit a person.
+
+Build 8 to 32 separate parts, like a game level. A sofa is a seat, a back, and arms. A shelf is boards and uprights. A screen is a thin panel. A railing is a rail plus posts. If an object has a hole, split it into convex pieces so the opening stays empty, and put the local offsets in "vertices".
 
 Return ONLY valid JSON:
 - "name": short name of the real place
-- "description": one sentence listing the objects you saw
-- "alignment_notes": how each box maps to something in the video
-- "camera": {{"pos": [x,y,z], "lookat": [x,y,z], "fovy": number}} matching the phone camera
-- "scene_obstacles": 3 to 12 boxes actually visible. Each is {{"id": "sofa"|"stair_1"|"railing"|"table"|..., "pos": [x,y,z], "size": [sx,sy,sz], "is_hazard": true, "rgba": [r,g,b,a]}}. Include "crash_mat" only when a mat or pad is in the video.
-- "env_critique_log": 3 strings: objects seen, scale check against a standing adult (~1.75m), what you refused to invent"""
+- "description": one sentence listing what you built
+- "alignment_notes": how the parts map to the video, including the object you used for scale
+- "camera": {{"pos": [x,y,z], "lookat": [x,y,z], "fovy": number}}
+- "scene_parts": each is {{"id": "sofa_seat", "type": "box"|"cylinder"|"convex", "material": "wood"|"fabric"|"metal"|"paint"|"glass"|"plastic"|"stone", "pos": [x,y,z], "size": [sx,sy,sz], "rgba": [r,g,b,1], "is_hazard": true}}. For a cylinder, size x is the radius and size z is the half-height. For convex, add "vertices": [[x,y,z], ...] as 6 to 16 offsets from pos. rgba is the real color in the video, with alpha 1 except glass.
+- "env_critique_log": 3 strings: parts built, scale check against a standing adult (~1.75m), what you refused to invent"""
 
             contents: List[Any] = [prompt]
 
@@ -781,9 +868,13 @@ Return ONLY valid JSON:
                         config=_build_argon_config(types, candidate_model, temperature=0.2),
                     )
                     parsed = _loads_model_json(resp.text or "")
-                    boxes = _normalize_location_boxes(parsed.get("scene_obstacles"))
+                    parts = _normalize_scene_parts(parsed.get("scene_parts"))
+                    boxes = _parts_as_boxes(parts) if parts else _normalize_location_boxes(parsed.get("scene_obstacles"))
+                    if not parts and boxes:
+                        parts = [{**box, "material": "paint"} for box in boxes]
                     if len(boxes) >= 1:
                         base_preset = _select_choreo_preset(stunt_brief, video_name or "")
+                        parsed["scene_parts"] = parts
                         parsed["scene_obstacles"] = boxes
                         parsed["humanoid_present"] = False
                         parsed.setdefault("id", "location_replica")

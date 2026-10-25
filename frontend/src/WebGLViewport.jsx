@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import * as THREE from 'three';
+import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 
 /**
  * Dispose all geometries and materials inside a Three.js Object3D subtree
@@ -435,34 +436,40 @@ const WebGLViewport = forwardRef(function WebGLViewport(
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    const ambient = new THREE.AmbientLight(0xdbeafe, 0.92);
-    scene.add(ambient);
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setClearColor(0x121212, 1);
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.55);
-    keyLight.position.set(3.5, 7.5, 5.0);
+    scene.add(new THREE.HemisphereLight(0xf3efe6, 0x2a2724, 0.9));
+
+    const keyLight = new THREE.DirectionalLight(0xfff7ec, 1.45);
+    keyLight.position.set(7, 12, 5);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 48;
+    keyLight.shadow.camera.left = -16;
+    keyLight.shadow.camera.right = 16;
+    keyLight.shadow.camera.top = 16;
+    keyLight.shadow.camera.bottom = -16;
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.85);
-    rimLight.position.set(-4, 3.5, -4);
-    scene.add(rimLight);
-
-    const fillLight = new THREE.DirectionalLight(0x818cf8, 0.45);
-    fillLight.position.set(0, -3, 4);
+    const fillLight = new THREE.DirectionalLight(0xd9d3c7, 0.35);
+    fillLight.position.set(-6, 4, -3);
     scene.add(fillLight);
 
-    // MuJoCo Physics Stage Floor & Coordinate Grid
-    const floorGeom = new THREE.PlaneGeometry(14, 10);
+    const floorGeom = new THREE.PlaneGeometry(28, 28);
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x090f1d,
-      roughness: 0.85,
-      metalness: 0.15,
+      color: 0x2a2826,
+      roughness: 0.92,
+      metalness: 0.02,
     });
     const floorMesh = new THREE.Mesh(floorGeom, floorMat);
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.position.y = -0.002;
+    floorMesh.receiveShadow = true;
     scene.add(floorMesh);
 
-    const grid = new THREE.GridHelper(14, 28, 0x0ea5e9, 0x1e293b);
+    const grid = new THREE.GridHelper(28, 28, 0x3f3a34, 0x2c2926);
     grid.position.y = 0.002;
     scene.add(grid);
 
@@ -569,83 +576,44 @@ const WebGLViewport = forwardRef(function WebGLViewport(
     rootGroup.name = 'dynamic_wave_root';
     ghostGroupsRef.current = {};
 
-    // 1. Render 3D MuJoCo Obstacles & Crash Mat
-    (activeData.scene_obstacles || []).forEach((obs) => {
-      const [sx, sy, sz] = obs.size;
-      const geom = new THREE.BoxGeometry(sx * 2, sz * 2, sy * 2);
-      const isMat = obs.id === 'crash_mat';
-      const isHazard = Boolean(obs.is_hazard);
-      const rgba = obs.rgba || (isMat ? [0.06, 0.72, 0.5, 0.55] : isHazard ? [0.95, 0.35, 0.2, 0.55] : [0.25, 0.55, 0.95, 0.5]);
-      const color = new THREE.Color(rgba[0], rgba[1], rgba[2]);
-
-      const mat = new THREE.MeshPhysicalMaterial({
-        color,
-        transparent: true,
-        opacity: isMat ? 0.52 : 0.48,
-        roughness: 0.28,
-        metalness: 0.15,
+    const surface = {
+      wood: { roughness: 0.78, metalness: 0.02 },
+      fabric: { roughness: 0.94, metalness: 0 },
+      metal: { roughness: 0.34, metalness: 0.7 },
+      paint: { roughness: 0.55, metalness: 0.04 },
+      glass: { roughness: 0.08, metalness: 0.04, transparent: true, opacity: 0.38 },
+      plastic: { roughness: 0.42, metalness: 0.06 },
+      stone: { roughness: 0.88, metalness: 0.02 },
+    };
+    const parts = activeData.scene_parts?.length ? activeData.scene_parts : activeData.scene_obstacles || [];
+    parts.forEach((part) => {
+      const [sx, sy, sz] = part.size;
+      let geom;
+      if (part.type === 'cylinder') {
+        geom = new THREE.CylinderGeometry(Math.max(sx, 0.02), Math.max(sx, 0.02), Math.max(sz * 2, 0.04), 28);
+      } else if (part.type === 'convex' && Array.isArray(part.vertices) && part.vertices.length >= 4) {
+        const points = part.vertices.map((vertex) => new THREE.Vector3(vertex[0], vertex[2], -vertex[1]));
+        try {
+          geom = new ConvexGeometry(points);
+        } catch {
+          geom = new THREE.BoxGeometry(sx * 2, sz * 2, sy * 2);
+        }
+      } else {
+        geom = new THREE.BoxGeometry(Math.max(sx * 2, 0.04), Math.max(sz * 2, 0.04), Math.max(sy * 2, 0.04));
+      }
+      const rgba = part.rgba || [0.62, 0.58, 0.52, 1];
+      const finish = surface[part.material] || surface.paint;
+      const mat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(rgba[0], rgba[1], rgba[2]),
+        roughness: finish.roughness,
+        metalness: finish.metalness,
+        transparent: Boolean(finish.transparent),
+        opacity: finish.opacity ?? 1,
       });
       const mesh = new THREE.Mesh(geom, mat);
-      mesh.position.copy(mjPosToThree(obs.pos));
-
-      const labelCanvas = document.createElement('canvas');
-      labelCanvas.width = 512;
-      labelCanvas.height = 96;
-      const labelCtx = labelCanvas.getContext('2d');
-      if (labelCtx) {
-        labelCtx.fillStyle = 'rgba(2, 6, 23, 0.88)';
-        labelCtx.fillRect(0, 16, 512, 64);
-        labelCtx.fillStyle = '#f8fafc';
-        labelCtx.font = '32px ui-monospace, monospace';
-        labelCtx.textAlign = 'center';
-        labelCtx.textBaseline = 'middle';
-        labelCtx.fillText(String(obs.id || 'object').replaceAll('_', ' ').slice(0, 22), 256, 48);
-        const label = new THREE.Sprite(
-          new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(labelCanvas), transparent: true, depthTest: false })
-        );
-        label.position.y = sz + 0.16;
-        label.scale.set(1.15, 0.22, 1);
-        mesh.add(label);
-      }
-
-      const edges = new THREE.EdgesGeometry(geom);
-      const lineMat = new THREE.LineBasicMaterial({
-        color: isMat ? 0x10b981 : isHazard ? 0xf59e0b : 0x38bdf8,
-        transparent: true,
-        opacity: 0.95,
-      });
-      const wireframe = new THREE.LineSegments(edges, lineMat);
-      mesh.add(wireframe);
-
-      if (isMat) {
-        const ringRadius = Math.min(sx, sy) * 0.72;
-        const outerRing = new THREE.Mesh(
-          new THREE.RingGeometry(ringRadius * 0.78, ringRadius * 0.95, 32),
-          new THREE.MeshBasicMaterial({
-            color: 0x10b981,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.82,
-          })
-        );
-        outerRing.rotation.x = -Math.PI / 2;
-        outerRing.position.y = sz + 0.004;
-        mesh.add(outerRing);
-
-        const innerRing = new THREE.Mesh(
-          new THREE.RingGeometry(ringRadius * 0.28, ringRadius * 0.42, 24),
-          new THREE.MeshBasicMaterial({
-            color: 0x34d399,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.9,
-          })
-        );
-        innerRing.rotation.x = -Math.PI / 2;
-        innerRing.position.y = sz + 0.005;
-        mesh.add(innerRing);
-      }
-
+      mesh.position.copy(mjPosToThree(part.pos));
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       rootGroup.add(mesh);
     });
 
@@ -912,7 +880,7 @@ const WebGLViewport = forwardRef(function WebGLViewport(
   }, [frameIndex, activeData, selectedGhostId, showAllGhosts]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden rounded-xl border border-slate-800 bg-[#060a12]">
+    <div className="relative w-full h-full overflow-hidden bg-neutral-950">
       <div ref={mountRef} className="relative z-10 w-full h-full cursor-grab active:cursor-grabbing" />
     </div>
   );
